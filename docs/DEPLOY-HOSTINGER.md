@@ -46,8 +46,8 @@ docker network ls | grep -i traefik
 
 ```bash
 mkdir -p /opt && cd /opt
-git clone https://github.com/Pulakhitman/places-discovery.git
-cd places-discovery
+git clone https://github.com/Pulakhitman/serpapi-places.git
+cd serpapi-places
 ```
 
 ## 4. Create the production `.env`
@@ -126,7 +126,7 @@ Then open `https://serpapiplaces.dhakafareast.tech`, sign in with `APP_ACCESS_KE
 ## 7. Updating
 
 ```bash
-cd /opt/places-discovery
+cd /opt/serpapi-places
 git pull --ff-only
 docker compose up -d --build
 docker compose ps
@@ -158,7 +158,7 @@ Copy backups off the VPS. Restore commands are in the main `README.md`.
 
 ## 10. Using Hostinger Docker Manager instead of SSH
 
-Docker Manager's **Compose from URL** pulls only the Compose file, but this project builds from source (`build: .`), so the build context must exist on the server. Use the SSH flow above as the primary method. If you prefer Docker Manager, clone the repo on the VPS first (or use its terminal), then open the project from `/opt/places-discovery`. The same `.env` and Traefik network rules apply.
+Docker Manager's **Compose from URL** pulls only the Compose file, but this project builds from source (`build: .`), so the build context must exist on the server. Use the SSH flow above as the primary method. If you prefer Docker Manager, clone the repo on the VPS first (or use its terminal), then open the project from `/opt/serpapi-places`. The same `.env` and Traefik network rules apply.
 
 ## Security checklist before going live
 
