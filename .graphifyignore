@@ -1,0 +1,14 @@
+# Keep the local codebase graph away from runtime data, credentials, and generated artifacts.
+.env*
+*.dump
+*.sql.gz
+data/
+backups/
+logs/
+exports/
+coverage/
+playwright-report/
+test-results/
+dist/
+node_modules/
+graphify-out/
