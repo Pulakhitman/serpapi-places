@@ -9,7 +9,7 @@ Self-hosted places research workspace combining **OpenStreetMap (Overpass)** wit
 - Global geography cascade: country → region/state → county/district → city, backed by the bundled GeoNames dataset (no external geocoder).
 - Three search scopes: radius in **kilometres** around a draggable map center (or any selected result via “Search around this place”), the selected region/county/city boundary when mapped in OSM, or the current map rectangle.
 - When a matching OSM administrative relation exists, boundary searches use its real polygon for OSM. SerpApi has no polygon search, so it samples around the boundary center and filters to the boundary's bounding box — the run caveat states this explicitly.
-- Separate OSM and SerpApi pin/cluster shapes with keyboard-focusable markers, card/marker sync, source filters, sorting, and fit-to-loaded-results. Card filters operate on loaded results independently of map layers.
+- Separate OSM and SerpApi pin/cluster shapes with keyboard-focusable, numbered markers, card/marker sync, source filters, sorting, and fit-to-loaded-results. Result numbers match between list rows and markers. Outside-area records stay in the run but are hidden from both the list and the map until you opt in with the shared “Show outside” toggle; source and text filters still operate on loaded results independently of map layers.
 - Real distance and bounding-box filtering after each source responds, with filtered-out and duplicate counts reported per source.
 - SerpApi pagination caps, daily/monthly budget reservations, duplicate-page detection, and partial-failure reporting.
 - On-demand SerpApi place details using `place_id` (never automatically per marker).

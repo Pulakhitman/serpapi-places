@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Place, SearchRun, Source } from "../../shared/types.js";
+import type { Place, SearchRun } from "../../shared/types.js";
 import { coverageLabel, formatDateTime, formatDistance, formatUsd, runStatusLabel, sourceLabel, statusTone } from "../format.js";
+import {
+  containmentCounts,
+  filterAndSortPlaces,
+  type SortKey,
+  type SourceFilter,
+} from "../place-filters.js";
 import { Badge, EmptyState, Spinner } from "./Feedback.js";
 
 interface ResultsPanelProps {
@@ -13,6 +19,12 @@ interface ResultsPanelProps {
   error: string | null;
   pricePerSearchUsd?: number;
   selectedId: string | null;
+  sortKey: SortKey;
+  onSortChange: (next: SortKey) => void;
+  showOutside: boolean;
+  onShowOutsideChange: (next: boolean) => void;
+  /** Stable numbers shared with the matching map markers. */
+  rankById: ReadonlyMap<string, number>;
   onSelectPlace: (id: string) => void;
   onHoverPlace: (id: string | null) => void;
   onLoadMore: () => void;
@@ -21,14 +33,6 @@ interface ResultsPanelProps {
   onRemoveSavedPlace: (place: Place) => void;
   onExportRun: () => void;
   onOpenLibrary: () => void;
-}
-
-type SourceFilter = "all" | Source;
-type SortKey = "distance" | "name" | "rating";
-
-function ratingOf(place: Place): number {
-  const value = place.fields.rating;
-  return typeof value === "number" ? value : -1;
 }
 
 export function ResultsPanel({
@@ -41,6 +45,11 @@ export function ResultsPanel({
   error,
   pricePerSearchUsd = 0.015,
   selectedId,
+  sortKey,
+  onSortChange,
+  showOutside,
+  onShowOutsideChange,
+  rankById,
   onSelectPlace,
   onHoverPlace,
   onLoadMore,
@@ -51,44 +60,21 @@ export function ResultsPanel({
   onOpenLibrary,
 }: ResultsPanelProps) {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
-  const [sortKey, setSortKey] = useState<SortKey>("distance");
   const [text, setText] = useState("");
-  const [showOutside, setShowOutside] = useState(false);
   useEffect(() => {
     setSourceFilter("all");
     setText("");
-    setShowOutside(false);
   }, [run?.id]);
 
-  const containment = useMemo(() => {
-    let inside = 0;
-    let outside = 0;
-    let unknown = 0;
-    for (const place of places) {
-      if (place.insideArea === true) inside++;
-      else if (place.insideArea === false) outside++;
-      else unknown++;
-    }
-    // Only offer the filter when the run actually classified records.
-    return { inside, outside, unknown, classified: inside + outside > 0 };
-  }, [places]);
+  const containment = useMemo(() => containmentCounts(places), [places]);
 
-  const filtered = useMemo(() => {
-    const needle = text.trim().toLowerCase();
-    const list = places.filter((place) => {
+  const filtered = useMemo(
+    () =>
       // The run never discards outside records; this is a presentation filter
       // that hides them by default and keeps the raw run intact.
-      if (containment.classified && !showOutside && place.insideArea === false) return false;
-      if (sourceFilter !== "all" && place.source !== sourceFilter) return false;
-      if (!needle) return true;
-      return `${place.name} ${place.address ?? ""} ${place.category ?? ""}`.toLowerCase().includes(needle);
-    });
-    return [...list].sort((a, b) => {
-      if (sortKey === "name") return a.name.localeCompare(b.name);
-      if (sortKey === "rating") return ratingOf(b) - ratingOf(a) || a.name.localeCompare(b.name);
-      return (a.distanceMeters ?? Number.MAX_SAFE_INTEGER) - (b.distanceMeters ?? Number.MAX_SAFE_INTEGER);
-    });
-  }, [places, sourceFilter, sortKey, text, showOutside, containment.classified]);
+      filterAndSortPlaces(places, { source: sourceFilter, sort: sortKey, text, showOutside }, containment),
+    [places, sourceFilter, sortKey, text, showOutside, containment],
+  );
 
   if (!run) {
     return (
@@ -353,7 +339,7 @@ export function ResultsPanel({
               </label>
               <label className="field field--inline">
                 <span>Sort</span>
-                <select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}>
+                <select value={sortKey} onChange={(event) => onSortChange(event.target.value as SortKey)}>
                   <option value="distance">Distance</option>
                   <option value="name">Name</option>
                   <option value="rating">Rating</option>
@@ -364,7 +350,7 @@ export function ResultsPanel({
                   <input
                     type="checkbox"
                     checked={showOutside}
-                    onChange={(event) => setShowOutside(event.target.checked)}
+                    onChange={(event) => onShowOutsideChange(event.target.checked)}
                   />
                   <span>
                     Show {containment.outside} outside the selected area
@@ -382,7 +368,9 @@ export function ResultsPanel({
             List filters only affect this view; no valid returned places are removed from the run.
           </p>
           <ul className="place-list">
-            {filtered.map((place) => (
+            {filtered.map((place, index) => {
+              const rank = rankById.get(place.id) ?? index + 1;
+              return (
               <li key={place.id}>
                 <article
                   className={`place-card${selectedId === place.id ? " place-card--selected" : ""}`}
@@ -393,12 +381,18 @@ export function ResultsPanel({
                     type="button"
                     className="place-card__select"
                     onClick={() => onSelectPlace(place.id)}
-                    aria-label={`Show details for ${place.name}`}
+                    aria-label={`Show details for ${place.name}, result ${rank}`}
                     aria-current={selectedId === place.id ? "true" : undefined}
                     onFocus={() => onHoverPlace(place.id)}
                     onBlur={() => onHoverPlace(null)}
                   >
                     <span className="place-card__badges">
+                      <span
+                        className={`place-card__rank place-card__rank--${place.source}`}
+                        aria-hidden="true"
+                      >
+                        {rank}
+                      </span>
                       <Badge tone={place.source}>{place.source === "osm" ? "OSM" : "SerpApi"}</Badge>
                       {place.possibleDuplicate ? (
                         <Badge tone="warn" title="A possible cross-source duplicate awaits review">
@@ -451,7 +445,8 @@ export function ResultsPanel({
                   </div>
                 </article>
               </li>
-            ))}
+              );
+            })}
           </ul>
 
           {filtered.length === 0 ? (

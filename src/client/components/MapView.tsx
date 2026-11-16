@@ -6,9 +6,15 @@ import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import type { Bounds, Coordinates, Place, SearchMode } from "../../shared/types.js";
 import { formatDistance, sourceLabel } from "../format.js";
+import { MapPinIcon } from "./icons.js";
 
 interface MapViewProps {
+  /** Already filtered and ordered by App, so marker numbers match list rows. */
   places: Place[];
+  rankById: ReadonlyMap<string, number>;
+  outsideHiddenCount?: number;
+  onShowOutside?: () => void;
+  loading?: boolean;
   center: Coordinates | null;
   radiusMeters: number;
   mode: SearchMode;
@@ -25,11 +31,11 @@ interface MapViewProps {
   onLayersChange: (layers: { osm: boolean; serpapi: boolean }) => void;
 }
 
-function markerIcon(source: Place["source"], selected: boolean): L.DivIcon {
-  const glyph = source === "osm" ? "◇" : "●";
+function markerIcon(source: Place["source"], selected: boolean, rank: number): L.DivIcon {
+  const compact = rank >= 100 ? " pd-marker__glyph--compact" : "";
   return L.divIcon({
     className: `pd-marker pd-marker--${source}${selected ? " pd-marker--selected" : ""}`,
-    html: `<span aria-hidden="true"><span class="pd-marker__glyph">${glyph}</span></span>`,
+    html: `<span aria-hidden="true"><span class="pd-marker__glyph${compact}">${rank}</span></span>`,
     iconSize: [44, 44],
     iconAnchor: [22, 40],
     tooltipAnchor: [0, -35],
@@ -65,6 +71,10 @@ function toBounds(bounds: L.LatLngBounds): Bounds {
 
 export function MapView({
   places,
+  rankById,
+  outsideHiddenCount = 0,
+  onShowOutside,
+  loading = false,
   center,
   radiusMeters,
   mode,
@@ -216,19 +226,20 @@ export function MapView({
     serpCluster.clearLayers();
     markerMapRef.current.clear();
 
-    for (const place of places) {
-      if (!Number.isFinite(place.lat) || !Number.isFinite(place.lon)) continue;
+    places.forEach((place, index) => {
+      if (!Number.isFinite(place.lat) || !Number.isFinite(place.lon)) return;
+      const rank = rankById.get(place.id) ?? index + 1;
       const marker = L.marker([place.lat, place.lon], {
-        icon: markerIcon(place.source, place.id === selectedId),
+        icon: markerIcon(place.source, place.id === selectedId, rank),
         keyboard: true,
-        title: place.name,
-        alt: `${place.name} (${sourceLabel(place.source)})`,
+        title: `${rank}. ${place.name}`,
+        alt: `${place.name}, result ${rank} (${sourceLabel(place.source)})`,
         riseOnHover: true,
       });
       const tooltip = document.createElement("div");
       tooltip.className = "pd-tooltip";
       const title = document.createElement("strong");
-      title.textContent = place.name;
+      title.textContent = `${rank}. ${place.name}`;
       const meta = document.createElement("span");
       meta.textContent = `${sourceLabel(place.source)} · ${place.category ?? "Uncategorised"} · ${formatDistance(place.distanceMeters)}`;
       tooltip.append(title, meta);
@@ -236,12 +247,12 @@ export function MapView({
       marker.on("click", () => callbacksRef.current.onSelect(place.id));
       marker.on("add", () => {
         const element = marker.getElement();
-        if (element) element.setAttribute("aria-label", `${place.name}, ${sourceLabel(place.source)}, ${place.category ?? "uncategorised"}`);
+        if (element) element.setAttribute("aria-label", `${place.name}, result ${rank}, ${sourceLabel(place.source)}, ${place.category ?? "uncategorised"}`);
       });
       markerMapRef.current.set(place.id, marker);
       if (place.source === "osm") osmCluster.addLayer(marker);
       else serpCluster.addLayer(marker);
-    }
+    });
     const labelClusters = (group: L.MarkerClusterGroup, source: string) => {
       for (const marker of group.getLayers()) {
         const visible = group.getVisibleParent(marker as L.Marker);
@@ -254,19 +265,20 @@ export function MapView({
       labelClusters(osmCluster, "OpenStreetMap");
       labelClusters(serpCluster, "SerpApi");
     });
+    // Selection is reflected by the dedicated effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [places]);
+  }, [places, rankById]);
 
   // Reflect selection without rebuilding every marker.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const byId = new Map(places.map((place) => [place.id, place]));
+    const byId = new Map(places.map((place, index) => [place.id, { place, rank: rankById.get(place.id) ?? index + 1 }]));
     for (const [id, item] of markerMapRef.current) {
       item.setZIndexOffset(id === selectedId ? 1000 : 0);
-      const itemPlace = byId.get(id);
-      item.setIcon(markerIcon(itemPlace?.source ?? "osm", id === selectedId));
-      if (itemPlace) item.getElement()?.setAttribute("aria-label", `${itemPlace.name}, ${sourceLabel(itemPlace.source)}, ${itemPlace.category ?? "uncategorised"}${id === selectedId ? ", selected" : ""}`);
+      const entry = byId.get(id);
+      item.setIcon(markerIcon(entry?.place.source ?? "osm", id === selectedId, entry?.rank ?? 0));
+      if (entry) item.getElement()?.setAttribute("aria-label", `${entry.place.name}, result ${entry.rank}, ${sourceLabel(entry.place.source)}, ${entry.place.category ?? "uncategorised"}${id === selectedId ? ", selected" : ""}`);
     }
     const marker = selectedId ? markerMapRef.current.get(selectedId) : null;
     if (!marker) return;
@@ -275,7 +287,7 @@ export function MapView({
     if (!map.getBounds().pad(-0.15).contains(latlng)) {
       map.panTo(latlng, { animate: true });
     }
-  }, [selectedId, places]);
+  }, [selectedId, places, rankById]);
 
   // Reflect hovered card -> marker tooltip (kept separate from rebuilds).
   useEffect(() => {
@@ -417,6 +429,32 @@ export function MapView({
   return (
     <div className="map-wrap">
       <div ref={containerRef} className="map-canvas" role="application" aria-label="Places map" />
+      {places.length === 0 ? (
+        <div className="map-placeholder" role="status">
+          <span className="map-placeholder__icon" aria-hidden="true">
+            <MapPinIcon size={26} />
+          </span>
+          <strong>
+            {loading
+              ? "Loading places…"
+              : outsideHiddenCount > 0
+                ? "All loaded places are outside the selected area"
+                : "No places to plot yet"}
+          </strong>
+          <p>
+            {loading
+              ? "Results will appear on the map as soon as the run finishes."
+              : outsideHiddenCount > 0
+                ? `${outsideHiddenCount} loaded place${outsideHiddenCount === 1 ? "" : "s"} fall outside the area you selected. They are kept in the run and only hidden from this view.`
+                : "Run a search to plot results here, or widen the search area if nothing matches."}
+          </p>
+          {outsideHiddenCount > 0 && onShowOutside ? (
+            <button type="button" className="button button--secondary button--small" onClick={onShowOutside}>
+              Show outside selected area
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <div className="map-toolbar" aria-label="Map layers">
         <label className="layer-toggle">
           <input

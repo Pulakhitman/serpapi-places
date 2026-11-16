@@ -22,7 +22,15 @@ import { ExportModal } from "./components/ExportModal.js";
 import { SettingsModal } from "./components/SettingsModal.js";
 import { SaveSearchModal } from "./components/SaveSearchModal.js";
 import { NoticeBar, Spinner, type Notice, type NoticeKind } from "./components/Feedback.js";
+import { MapPinIcon } from "./components/icons.js";
 import { useFocusTrap } from "./useFocusTrap.js";
+import {
+  containmentCounts,
+  filterAndSortPlaces,
+  mapVisiblePlaces,
+  rankPlaces,
+  type SortKey,
+} from "./place-filters.js";
 
 const CRITERIA_KEY = "pd.criteria.v1";
 
@@ -97,6 +105,9 @@ export function App() {
   const [activeRun, setActiveRun] = useState<SearchRun | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
   const [placesTotal, setPlacesTotal] = useState(0);
+  /** Shared presentation filters: list rows and map markers stay in sync. */
+  const [showOutside, setShowOutside] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("distance");
   const [loadingPlaces, setLoadingPlaces] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -155,6 +166,34 @@ export function App() {
     if (activeRun) map.set(activeRun.id, activeRun);
     return [...map.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [runs, ephemeralRuns, activeRun]);
+
+  const placeContainment = useMemo(() => containmentCounts(places), [places]);
+  // One ordered set feeds both surfaces, so a result's number always matches
+  // its marker and the map never plots outside records while they are hidden.
+  const mapPlaces = useMemo(
+    () =>
+      filterAndSortPlaces(
+        mapVisiblePlaces(places, showOutside, placeContainment),
+        { source: "all", sort: sortKey, text: "", showOutside },
+        placeContainment,
+      ),
+    [places, showOutside, sortKey, placeContainment],
+  );
+  const rankById = useMemo(() => rankPlaces(mapPlaces), [mapPlaces]);
+  const hiddenOutsideCount = !showOutside && placeContainment.classified ? placeContainment.outside : 0;
+
+  // A new run starts from the default presentation.
+  useEffect(() => {
+    setShowOutside(false);
+    setSortKey("distance");
+  }, [activeRun?.id]);
+
+  // Hiding outside records also dismisses details for a place that just left view.
+  useEffect(() => {
+    if (!selectedPlaceId || showOutside) return;
+    const selected = places.find((place) => place.id === selectedPlaceId);
+    if (selected?.insideArea === false) setSelectedPlaceId(null);
+  }, [places, selectedPlaceId, showOutside]);
 
   useEffect(() => {
     const query = window.matchMedia("(max-width: 860px)");
@@ -625,7 +664,7 @@ export function App() {
       <header className="topbar">
         <div className="topbar__brand">
           <span className="brand-mark" aria-hidden="true">
-            ◉
+            <MapPinIcon size={18} />
           </span>
           <div>
             <h1 className="topbar__title">Places Discovery</h1>
@@ -788,6 +827,11 @@ export function App() {
               error={runError}
               pricePerSearchUsd={status?.usage.pricePerSearchUsd}
               selectedId={selectedPlaceId}
+              sortKey={sortKey}
+              onSortChange={setSortKey}
+              showOutside={showOutside}
+              onShowOutsideChange={setShowOutside}
+              rankById={rankById}
               onSelectPlace={(id) => {
                 setSelectedPlaceId(id);
                 if (isMobileViewport()) setMobileView("map");
@@ -815,13 +859,17 @@ export function App() {
           {...(narrowViewport && mobileView === "list" ? { inert: true as const, "aria-hidden": true } : {})}
         >
           <MapView
-            places={places}
+            places={mapPlaces}
+            rankById={rankById}
             center={criteria.center}
             radiusMeters={criteria.radiusMeters}
             mode={criteria.mode}
             bounds={criteria.bounds}
             selectedId={selectedPlaceId}
             hoveredId={hoveredId}
+            outsideHiddenCount={hiddenOutsideCount}
+            onShowOutside={() => setShowOutside(true)}
+            loading={loadingPlaces}
             onSelect={(id) => setSelectedPlaceId(id)}
             onMapClick={handleMapClick}
             onViewport={setViewportBounds}

@@ -185,6 +185,10 @@ button {
   flex: 0 0 auto;
 }
 
+.brand-mark svg {
+  display: block;
+}
+
 .topbar__usage {
   margin-left: auto;
 }
@@ -1278,8 +1282,37 @@ button {
 .place-card__badges {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
   margin-bottom: 2px;
+}
+
+.place-card__rank {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.place-card__rank--osm {
+  background: var(--osm);
+}
+
+.place-card__rank--serpapi {
+  background: var(--serpapi);
+}
+
+.place-card--selected .place-card__rank {
+  outline: 2px solid rgba(20, 45, 38, 0.22);
+  outline-offset: 1px;
 }
 
 .place-card__name {
@@ -1343,6 +1376,53 @@ button {
 .leaflet-control-attribution {
   font-size: 9.5px;
   background: rgba(255, 255, 255, 0.9) !important;
+}
+
+.map-placeholder {
+  position: absolute;
+  z-index: 500;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  width: min(320px, calc(100% - 40px));
+  padding: 18px 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+.map-placeholder__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+
+.map-placeholder strong {
+  font-size: 13px;
+}
+
+.map-placeholder p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.map-placeholder .button {
+  margin-top: 4px;
+  pointer-events: auto;
 }
 
 .map-toolbar {
@@ -1484,9 +1564,16 @@ button {
 
 .pd-marker__glyph {
   transform: rotate(45deg);
-  font-size: 17px;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 800;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.pd-marker__glyph--compact {
+  font-size: 9.5px;
+  letter-spacing: -0.04em;
 }
 
 .pd-marker--osm > span { background: var(--osm); }

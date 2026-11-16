@@ -102,6 +102,11 @@ const handlers = {
   onRemoveSavedPlace: vi.fn(),
   onExportRun: vi.fn(),
   onOpenLibrary: vi.fn(),
+  onSortChange: vi.fn(),
+  onShowOutsideChange: vi.fn(),
+  sortKey: "distance" as const,
+  showOutside: false,
+  rankById: new Map<string, number>(),
 };
 
 describe("NoticeBar", () => {
@@ -266,6 +271,56 @@ describe("ResultsPanel", () => {
     expect(screen.getByText("Possible duplicate")).toBeInTheDocument();
     expect(screen.getByText("Invalid records")).toBeInTheDocument();
     expect(screen.getByText(/SerpApi results are a sample/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show details for Sultan's Dine, result 1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show details for Biryani House, result 2" })).toBeInTheDocument();
+  });
+
+  it("hides outside records until the shared toggle is enabled", () => {
+    const onShowOutsideChange = vi.fn();
+    render(
+      <ResultsPanel
+        run={run()}
+        runs={[]}
+        places={[
+          place(),
+          place({
+            id: "p2",
+            name: "Far Away Cafe",
+            insideArea: false,
+            distanceMeters: 9_000,
+          }),
+        ]}
+        total={2}
+        loading={false}
+        loadingMore={false}
+        error={null}
+        selectedId={null}
+        {...handlers}
+        onShowOutsideChange={onShowOutsideChange}
+      />,
+    );
+
+    expect(screen.queryByText("Far Away Cafe")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: /show 1 outside the selected area/i }));
+    expect(onShowOutsideChange).toHaveBeenCalledWith(true);
+  });
+
+  it("uses the shared rank map for numbered result cards", () => {
+    render(
+      <ResultsPanel
+        run={run()}
+        runs={[]}
+        places={[place()]}
+        total={1}
+        loading={false}
+        loadingMore={false}
+        error={null}
+        selectedId={null}
+        {...handlers}
+        rankById={new Map([["p1", 7]])}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Show details for Sultan's Dine, result 7" })).toBeInTheDocument();
   });
 
   it("shows an honest empty state when no valid places are returned", () => {
