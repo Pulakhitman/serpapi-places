@@ -69,10 +69,14 @@ export function LibraryModal({
   const [duplicateState, setDuplicateState] = useState("candidate");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  const [duplicateLoading, setDuplicateLoading] = useState(false);
+  const [duplicateRetry, setDuplicateRetry] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
   const [textFilter, setTextFilter] = useState("");
+  const [collectionFilter, setCollectionFilter] = useState("");
   const [newCollectionName, setNewCollectionName] = useState("");
   const [newCollectionDescription, setNewCollectionDescription] = useState("");
   const [bulkCollection, setBulkCollection] = useState("");
@@ -92,16 +96,24 @@ export function LibraryModal({
   const loadAll = async () => {
     setLoading(true);
     setError(null);
+    setDuplicateError(null);
     try {
+      // Core library data first so the Saved/Collections/Searches tabs do not
+      // wait on duplicate review, which is a separate, slower request.
       const [saved, searchResult] = await Promise.all([api.savedPlaces(), api.savedSearches()]);
       setPlaces(saved.places);
       setCollections(saved.collections);
       setSearches(searchResult.searches);
-      const dupes = await api.duplicates(duplicateState);
-      setDuplicates(dupes.duplicates);
+      setLoading(false);
+      try {
+        const dupes = await api.duplicates(duplicateState);
+        setDuplicates(dupes.duplicates);
+      } catch (caught) {
+        // A duplicates failure must not blank the tabs that did load.
+        setDuplicateError(caught instanceof ApiError ? caught.message : "Could not load duplicate review.");
+      }
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : "Could not load the library.");
-    } finally {
       setLoading(false);
     }
   };
@@ -114,26 +126,38 @@ export function LibraryModal({
   useEffect(() => {
     if (tab !== "duplicates") return;
     let cancelled = false;
+    setDuplicateLoading(true);
+    setDuplicateError(null);
+    // Clear stale matches so rows under a new status never look current.
+    setDuplicates([]);
     api
       .duplicates(duplicateState)
       .then((result) => {
         if (!cancelled) setDuplicates(result.duplicates);
       })
       .catch((caught) => {
-        if (!cancelled) onNotify("error", caught instanceof ApiError ? caught.message : "Could not load duplicates.");
+        if (!cancelled) {
+          setDuplicateError(caught instanceof ApiError ? caught.message : "Could not load duplicates.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDuplicateLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [duplicateState, tab, onNotify]);
+  }, [duplicateState, tab, duplicateRetry]);
 
   const filteredPlaces = useMemo(() => {
     const needle = textFilter.trim().toLowerCase();
-    if (!needle) return places;
-    return places.filter((item) =>
+    const scoped = collectionFilter
+      ? places.filter((item) => item.collections.some((entry) => entry.id === collectionFilter))
+      : places;
+    if (!needle) return scoped;
+    return scoped.filter((item) =>
       `${item.place.name} ${item.note ?? ""} ${item.place.address ?? ""}`.toLowerCase().includes(needle),
     );
-  }, [places, textFilter]);
+  }, [places, textFilter, collectionFilter]);
 
   const collectionsByPlace = useMemo(() => {
     const map = new Map<string, Collection[]>();
@@ -428,6 +452,19 @@ export function LibraryModal({
                     onChange={(event) => setTextFilter(event.target.value)}
                   />
                 </label>
+                {collections.length > 0 ? (
+                  <label className="field field--inline">
+                    <span>Collection</span>
+                    <select value={collectionFilter} onChange={(event) => setCollectionFilter(event.target.value)}>
+                      <option value="">All collections</option>
+                      {collections.map((collection) => (
+                        <option key={collection.id} value={collection.id}>
+                          {collection.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
                 <button
                   type="button"
                   className="button button--ghost button--small"
@@ -776,6 +813,16 @@ export function LibraryModal({
                       type="button"
                       className="button button--secondary button--small"
                       onClick={() => {
+                        setCollectionFilter(collection.id);
+                        setTab("places");
+                      }}
+                    >
+                      View places
+                    </button>
+                    <button
+                      type="button"
+                      className="button button--secondary button--small"
+                      onClick={() => {
                         onExportCollection(collection.id);
                         onClose();
                       }}
@@ -925,7 +972,22 @@ export function LibraryModal({
               Matches are suggestions. Source records stay separate; reviewing only records a link or rejection.
             </p>
           </div>
-          {duplicates.length === 0 ? (
+          {duplicateError ? (
+            <div className="form-error" role="alert">
+              <span>{duplicateError}</span>
+              <button
+                type="button"
+                className="button button--secondary button--small"
+                onClick={() => setDuplicateRetry((current) => current + 1)}
+              >
+                Retry
+              </button>
+            </div>
+          ) : duplicateLoading ? (
+            <div className="results__loading" role="status">
+              <Spinner label="Loading duplicate matches" /> Loading matches…
+            </div>
+          ) : duplicates.length === 0 ? (
             <EmptyState title={`No ${duplicateState} matches`}>
               <p>
                 Cross-source duplicates are detected conservatively by name, address, category, and proximity. No

@@ -9,7 +9,7 @@ import { formatDistance, sourceLabel } from "../format.js";
 import {
   MapPinIcon,
   markerPinSvg,
-  markerRankBadge,
+  markerRankLabel,
   placeIconLabel,
   placeIconName,
 } from "./icons.js";
@@ -35,6 +35,8 @@ interface MapViewProps {
   tiles: { url: string; attribution: string; maxZoom: number };
   layers: { osm: boolean; serpapi: boolean };
   onLayersChange: (layers: { osm: boolean; serpapi: boolean }) => void;
+  /** Selects the current map viewport as the search area, then returns to search on mobile. */
+  onUseMapView: () => void;
 }
 
 /**
@@ -61,21 +63,24 @@ function markerAlt(
 
 interface MarkerIconOptions {
   source: Place["source"];
-  category: string | null;
   selected: boolean;
   rank: number | null;
 }
 
-function markerIcon({ source, category, selected, rank }: MarkerIconOptions): L.DivIcon {
-  const name = placeIconName(category);
-  const classes = ["pd-marker", `pd-marker--${source}`, `pd-marker--${name}`];
+/**
+ * A Google-Maps-style marker: a source-coloured teardrop with the result number
+ * inside its head. The category is deliberately not drawn on the pin, so a dense
+ * map stays legible; it remains in the tooltip and aria-label.
+ */
+function markerIcon({ source, selected, rank }: MarkerIconOptions): L.DivIcon {
+  const classes = ["pd-marker", `pd-marker--${source}`];
   if (selected) classes.push("pd-marker--selected");
   return L.divIcon({
     className: classes.join(" "),
-    html: `<span aria-hidden="true">${markerPinSvg(name, source)}</span>${markerRankBadge(rank)}`,
-    iconSize: [34, 44],
-    iconAnchor: [17, 42],
-    tooltipAnchor: [0, -40],
+    html: `${markerPinSvg(source)}${markerRankLabel(rank)}`,
+    iconSize: [26, 38],
+    iconAnchor: [13, 36],
+    tooltipAnchor: [0, -34],
   });
 }
 
@@ -126,6 +131,7 @@ export function MapView({
   tiles,
   layers,
   onLayersChange,
+  onUseMapView,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -268,7 +274,7 @@ export function MapView({
       const rank = rankById.get(place.id) ?? null;
       const kind = placeIconName(place.category);
       const marker = L.marker([place.lat, place.lon], {
-        icon: markerIcon({ source: place.source, category: place.category, selected: place.id === selectedId, rank }),
+        icon: markerIcon({ source: place.source, selected: place.id === selectedId, rank }),
         keyboard: true,
         title: rank === null ? place.name : `${rank}. ${place.name}`,
         alt: markerAlt(place, rank, kind, false),
@@ -320,7 +326,6 @@ export function MapView({
       item.setIcon(
         markerIcon({
           source: itemPlace?.source ?? "osm",
-          category: itemPlace?.category ?? null,
           selected: isSelected,
           rank: rankById.get(id) ?? null,
         }),
@@ -529,9 +534,19 @@ export function MapView({
         <button type="button" className="map-toolbar__button" onClick={fitNow} aria-label="Fit loaded places on map">
           Fit
         </button>
+        {mode === "area" ? (
+          <button
+            type="button"
+            className="map-toolbar__button map-toolbar__button--primary"
+            onClick={onUseMapView}
+            aria-label="Use current map view as the search area"
+          >
+            Use this view
+          </button>
+        ) : null}
       </div>
       {mode === "area" ? (
-        <p className="map-hint">Map-area mode: pan or zoom, then press “Use current map view” in the sidebar.</p>
+        <p className="map-hint">Map-area mode: pan or zoom, then use “Use this view” here or in the sidebar.</p>
       ) : null}
       <div className="map-legend">
         <span className="layer-dot layer-dot--osm" aria-hidden="true" /> OSM

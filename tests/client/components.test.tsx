@@ -98,6 +98,7 @@ const handlers = {
   onHoverPlace: vi.fn(),
   onLoadMore: vi.fn(),
   onSwitchRun: vi.fn(),
+  onRetryRun: vi.fn(),
   onSavePlace: vi.fn(),
   onRemoveSavedPlace: vi.fn(),
   onExportRun: vi.fn(),
@@ -377,5 +378,27 @@ describe("ResultsPanel", () => {
     );
     expect(screen.getByText("Searching sources…")).toBeInTheDocument();
     expect(screen.getByLabelText("Search in progress")).toBeInTheDocument();
+  });
+
+  it("offers a Retry beside a results error so a failed load is recoverable in place", () => {
+    const onRetryRun = vi.fn();
+    render(
+      <ResultsPanel
+        run={run()}
+        runs={[run()]}
+        places={[]}
+        total={0}
+        loading={false}
+        loadingMore={false}
+        error="Could not load results."
+        pricePerSearchUsd={0.015}
+        selectedId={null}
+        {...handlers}
+        onRetryRun={onRetryRun}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load results.");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(onRetryRun).toHaveBeenCalledTimes(1);
   });
 });

@@ -14,16 +14,12 @@ interface IconProps {
   size?: number;
 }
 
-let gradientSeq = 0;
-
 /** Shared stroke paths, described on a 24×24 grid. */
 const ICON_PATHS: Record<PlaceIconName, string[]> = {
   pin: [
     "M12 21.2s7-6.4 7-11.2a7 7 0 1 0-14 0c0 4.8 7 11.2 7 11.2Z",
     "M12 13.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z",
   ],
-  // Used inside a map pin for uncategorised places; a pin inside a pin reads as
-  // noise, so the fallback is a clean centred dot.
   dot: ["M12 5.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Z"],
   food: [
     "M7 3.5v6.2a2 2 0 0 0 2 2h.4V3.5",
@@ -115,35 +111,41 @@ export function placeIconLabel(name: PlaceIconName): string {
   return ICON_LABELS[name];
 }
 
+/** Monotonic id so each marker's SVG defs stay unique; duplicate SVG ids are invalid. */
+let markerSeq = 0;
+
 /**
- * Marker body for Leaflet div icons: a pin silhouette containing the category
- * glyph. Returns a self-contained SVG string, so it can live inside marker
- * HTML without React.
+ * Map marker body, drawn as a single SVG string for Leaflet div icons.
+ *
+ * The shape is a Google-Maps-style teardrop: a solid source-coloured pin with a
+ * soft point where it meets the ground. The pin head carries the result number
+ * in white, because the number is the one thing a marker must share with its
+ * list row. The category stays in the tooltip and accessibility label instead of
+ * crowding the pin, which keeps a dense map readable.
  */
-export function markerPinSvg(name: PlaceIconName, variant: string): string {
-  const gradientId = `pd-pin-${variant}-${(gradientSeq += 1)}`;
-  const glyphPaths = ICON_PATHS[name]
-    .map((path) => `<path d="${path}" />`)
-    .join("");
-  // The teardrop head is a circle centred near (15, 15.5) with a ~13 radius.
-  // Scaling the 24-unit glyph by 0.9 and centring it there fills the head while
-  // leaving a clean margin inside the white outline.
-  const scale = 0.9;
-  const offset = 12 * scale;
+export function markerPinSvg(sourceVariant: string): string {
+  const id = (markerSeq += 1);
+  const gradientId = `pd-pin-grad-${sourceVariant}-${id}`;
+  const shapeId = `pd-pin-shape-${id}`;
   return [
-    `<svg viewBox="0 0 30 40" aria-hidden="true" focusable="false">`,
-    `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">`,
+    `<svg viewBox="0 0 26 38" aria-hidden="true" focusable="false">`,
+    `<defs>`,
+    `<linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">`,
     `<stop class="pd-pin__stop-a" offset="0" />`,
     `<stop class="pd-pin__stop-b" offset="1" />`,
-    `</linearGradient></defs>`,
-    `<path class="pd-pin__body" fill="url(#${gradientId})" d="M15 39.4C15 39.4 28 25.9 28 15.6C28 8.7 22.1 3 15 3C7.9 3 2 8.7 2 15.6C2 25.9 15 39.4 15 39.4Z" />`,
-    `<g class="pd-pin__glyph" transform="translate(${15 - offset} ${15.5 - offset}) scale(${scale})">${glyphPaths}</g>`,
+    `</linearGradient>`,
+    `<path id="${shapeId}" d="M13 37.4C13 37.4 24 24.6 24 13.9C24 7.3 19.1 2 13 2C6.9 2 2 7.3 2 13.9C2 24.6 13 37.4 13 37.4Z" />`,
+    `</defs>`,
+    `<use class="pd-pin__body" href="#${shapeId}" fill="url(#${gradientId})" />`,
     `</svg>`,
   ].join("");
 }
 
-/** Small numbered badge shown on a marker's shoulder; empty string when unnumbered. */
-export function markerRankBadge(rank: number | null): string {
+/**
+ * The number shown inside a marker head. Kept as its own element so the map can
+ * emphasise it on hover/selection without rebuilding the pin.
+ */
+export function markerRankLabel(rank: number | null): string {
   if (rank === null || !Number.isFinite(rank)) return "";
   const compact = rank >= 100 ? " pd-marker__rank--compact" : "";
   return `<span class="pd-marker__rank${compact}" aria-hidden="true">${rank}</span>`;

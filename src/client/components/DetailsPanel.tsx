@@ -497,6 +497,7 @@ export function DetailsPanel({
   const [collectionsOpen, setCollectionsOpen] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState("");
   const [unsaveMenuOpen, setUnsaveMenuOpen] = useState(false);
+  const [confirmDestroy, setConfirmDestroy] = useState(false);
 
   const saved = savedPlaces.find((item) => item.place.id === placeId || item.place.sourceId === place?.sourceId);
 
@@ -600,6 +601,7 @@ export function DetailsPanel({
       if (!saved) return;
       await api.deleteSavedPlace(saved.id, { destroySource });
       setUnsaveMenuOpen(false);
+      setConfirmDestroy(false);
       onChanged();
       onNotify("info", destroySource ? "Removed from saved places and deleted from the library." : "Removed from saved places.");
     });
@@ -1205,19 +1207,44 @@ export function DetailsPanel({
                         >
                           Unsave
                         </button>
-                        <button
-                          type="button"
-                          className="button button--danger button--small"
-                          onClick={() => removeSaved(true)}
-                          disabled={busyAction !== null}
-                          title="Also delete the source record and any collections-only leftovers"
-                        >
-                          Unsave and delete
-                        </button>
+                        {confirmDestroy ? (
+                          <span className="danger-confirm" role="alert">
+                            <span>
+                              Delete this place record from the library too? Its notes and collection
+                              membership are removed and cannot be undone.
+                            </span>
+                            <button
+                              type="button"
+                              className="button button--danger button--small"
+                              onClick={() => removeSaved(true)}
+                              disabled={busyAction !== null}
+                            >
+                              {busyAction === "unsave" ? "Deleting…" : "Yes, delete"}
+                            </button>
+                            <button
+                              type="button"
+                              className="button button--ghost button--small"
+                              onClick={() => setConfirmDestroy(false)}
+                              disabled={busyAction !== null}
+                            >
+                              Keep it
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="button button--danger button--small"
+                            onClick={() => setConfirmDestroy(true)}
+                            disabled={busyAction !== null}
+                            title="Also delete the source record and any collections-only leftovers"
+                          >
+                            Unsave and delete…
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="button button--ghost button--small"
-                          onClick={() => setUnsaveMenuOpen(false)}
+                          onClick={() => { setUnsaveMenuOpen(false); setConfirmDestroy(false); }}
                           disabled={busyAction !== null}
                         >
                           Cancel

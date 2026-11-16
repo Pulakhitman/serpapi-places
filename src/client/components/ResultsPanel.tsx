@@ -29,10 +29,23 @@ interface ResultsPanelProps {
   onHoverPlace: (id: string | null) => void;
   onLoadMore: () => void;
   onSwitchRun: (runId: string) => void;
+  /** Retries the currently active run when its results failed to load. */
+  onRetryRun: () => void;
   onSavePlace: (place: Place) => void;
   onRemoveSavedPlace: (place: Place) => void;
   onExportRun: () => void;
   onOpenLibrary: () => void;
+}
+
+/**
+ * Short human label for a run, so two runs created minutes apart are
+ * distinguishable in the Recent run picker.
+ */
+function runQueryLabel(run: SearchRun): string {
+  const keyword = run.criteria.keyword?.trim();
+  const place = run.criteria.city || run.criteria.region || run.criteria.country;
+  const parts = [keyword || "Category search", place].filter(Boolean);
+  return parts.join(" · ");
 }
 
 export function ResultsPanel({
@@ -54,6 +67,7 @@ export function ResultsPanel({
   onHoverPlace,
   onLoadMore,
   onSwitchRun,
+  onRetryRun,
   onSavePlace,
   onRemoveSavedPlace,
   onExportRun,
@@ -118,7 +132,7 @@ export function ResultsPanel({
           <select value={run.id} onChange={(event) => onSwitchRun(event.target.value)}>
             {runs.map((item) => (
               <option key={item.id} value={item.id}>
-                {formatDateTime(item.createdAt)} · {runStatusLabel(item.status)} · {item.counts.total} places
+                {formatDateTime(item.createdAt)} · {runQueryLabel(item)} · {runStatusLabel(item.status)} · {item.counts.total} places
               </option>
             ))}
           </select>
@@ -187,8 +201,9 @@ export function ResultsPanel({
           {run.sources.length > 0 ? (
             <details className="source-summary">
               <summary>Source details and provenance</summary>
-              <table>
-                <caption className="visually-hidden">Per-source request and result counts</caption>
+              <div className="table-scroll" role="region" aria-label="Per-source request and result counts" tabIndex={0}>
+                <table>
+                  <caption className="visually-hidden">Per-source request and result counts</caption>
                 <thead>
                   <tr>
                     <th scope="col">Source</th>
@@ -228,7 +243,8 @@ export function ResultsPanel({
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+              </div>
               {run.criteria.mode === "boundary" ? (
                 <p>
                   {run.criteria.boundaryResolution ? (
@@ -285,9 +301,12 @@ export function ResultsPanel({
       ) : null}
 
       {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+        <div className="form-error" role="alert">
+          <span>{error}</span>
+          <button type="button" className="button button--secondary button--small" onClick={onRetryRun}>
+            Retry
+          </button>
+        </div>
       ) : null}
 
       {loading ? (

@@ -494,13 +494,13 @@ button {
 .field--checkbox input {
   width: 16px;
   height: 16px;
-  accent-color: var(--accent);
+  accent-color: var(--primary);
   flex: 0 0 auto;
 }
 
 .field--checkbox > span {
   font-weight: 500;
-  color: var(--text);
+  color: var(--ink);
 }
 
 .field-grid {
@@ -510,6 +510,11 @@ button {
 }
 
 .form-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   padding: 8px 10px;
   border-radius: 7px;
   background: var(--danger-soft);
@@ -1163,6 +1168,22 @@ button {
   font-size: 11px;
 }
 
+/* Eight-column provenance table: allow horizontal scroll instead of cramming
+   cells into a narrow sidebar. Focusable so keyboard users can scroll it. */
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.table-scroll > table {
+  min-width: 640px;
+}
+
+.table-scroll:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .source-summary th,
 .source-summary td {
   padding: 5px 8px;
@@ -1491,6 +1512,12 @@ button {
   font-weight: 650;
 }
 
+.map-toolbar__button--primary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
 .map-hint {
   position: absolute;
   z-index: 900;
@@ -1548,106 +1575,93 @@ button {
   cursor: pointer;
 }
 
-/* Category pin: an SVG teardrop that carries the category glyph. */
-.pd-marker > span {
+/*
+ * Google-Maps-style marker: a solid source-coloured teardrop with the result
+ * number in the head. Kept intentionally plain so a dense map stays readable.
+ */
+.pd-marker > svg {
   display: block;
-  width: 34px;
-  height: 44px;
-  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.32));
+  width: 26px;
+  height: 38px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
   transition: transform 0.12s ease;
-  transform-origin: 50% 92%;
-}
-
-.pd-marker > span svg {
-  display: block;
-  width: 34px;
-  height: 44px;
-  overflow: visible;
+  transform-origin: 50% 100%;
 }
 
 .pd-pin__body {
   stroke: #fff;
-  stroke-width: 1.6;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
 }
 
 .pd-pin__stop-a { stop-color: var(--pin-a); }
 .pd-pin__stop-b { stop-color: var(--pin-b); }
 
-.pd-pin__glyph {
-  /* The glyph is drawn at a 0.9 scale in the marker SVG, so a thicker stroke
-     here is what keeps it crisp rather than hairline-thin on the pin. */
-  stroke: #fff;
-  stroke-width: 2.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
-}
-
-/* Source palettes. Reusing the layer colours keeps marker and legend honest,
-   and the category is carried by the glyph rather than the pin colour, so a
-   SerpApi pin never stops being orange and an OSM pin never stops being green. */
+/* Source palettes: SerpApi reads like a classic red Google pin, OSM is green. */
 .pd-marker--osm {
-  --pin-a: #35a869;
-  --pin-b: var(--osm);
+  --pin-a: #3cb371;
+  --pin-b: #1f8a4c;
 }
 
 .pd-marker--serpapi {
-  --pin-a: #f0742f;
-  --pin-b: var(--serpapi);
+  --pin-a: #f4633a;
+  --pin-b: #d63a25;
 }
 
-/* Numbered badge on the pin's shoulder, shared with the results list. */
+/* Result number, centred in the pin head. This is the marker→list link. */
 .pd-marker__rank {
   position: absolute;
-  top: 2px;
-  left: -4px;
-  display: inline-grid;
-  place-items: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  border-radius: 999px;
-  border: 2px solid #fff;
-  background: var(--ink);
+  top: 5px;
+  left: 0;
+  width: 26px;
+  display: block;
   color: #fff;
-  font-size: 10px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 700;
   line-height: 1;
+  text-align: center;
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
 }
 
 .pd-marker__rank--compact {
-  font-size: 8px;
-  letter-spacing: -0.05em;
+  font-size: 9px;
+  letter-spacing: -0.04em;
 }
 
-.pd-marker--osm > .pd-marker__rank { background: var(--osm); }
-.pd-marker--serpapi > .pd-marker__rank { background: var(--serpapi); }
-
-.pd-marker:hover > span,
-.pd-marker--selected > span {
-  transform: scale(1.13);
+.pd-marker:hover > svg,
+.pd-marker--selected > svg {
+  transform: scale(1.12);
 }
 
-.pd-marker--selected > span {
-  filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.36));
+.pd-marker--selected > svg {
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.4));
+}
+
+.pd-marker--selected .pd-marker__rank {
+  font-weight: 800;
 }
 
 .pd-marker:focus-visible, .pd-cluster:focus-visible { outline: 3px solid #162f28; outline-offset: 2px; }
 
+/*
+ * Clusters are deliberately NOT shaped or coloured like pins: the number on a
+ * pin is a result number, while the number on a cluster is how many places are
+ * grouped there. A neutral circular bubble keeps the two from being confused.
+ */
 .pd-cluster {
   display: grid;
   place-items: center;
   border-radius: 50%;
   border: 3px solid #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  background: var(--ink);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   color: #fff;
   font-size: 13px;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
-.pd-cluster--osm { background: var(--osm); }
-.pd-cluster--serpapi { background: var(--serpapi); border-radius: 12px; }
+.pd-cluster--osm { background: #14532d; }
+.pd-cluster--serpapi { background: #7c2d12; }
 .layer-dot--serpapi { border-radius: 2px; }
 
 .pd-center-marker span {
@@ -2829,6 +2843,21 @@ button {
   background: #fdf2f2;
 }
 
+/* Two-step inline confirmation for destructive place actions in the details
+   panel; consequence-focused before the delete can run. */
+.danger-confirm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #f0c2c2;
+  border-radius: 8px;
+  background: #fdf2f2;
+  font-size: 12px;
+  color: var(--ink);
+}
+
 .check-inline {
   display: inline-flex;
   align-items: center;
@@ -3469,6 +3498,27 @@ button {
     width: 100%;
     justify-content: space-between;
     gap: 4px;
+  }
+
+  /* Keep secondary actions on one row instead of wrapping into extra header
+     rows that eat the map/list height; scroll sideways if they cannot fit. */
+  @media (max-width: 560px) {
+    .topbar__nav {
+      justify-content: flex-start;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .topbar__nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .topbar__nav > * {
+      flex: 0 0 auto;
+    }
   }
 
   .topbar__user {

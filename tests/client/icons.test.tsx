@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   MapPinIcon,
   markerPinSvg,
-  markerRankBadge,
+  markerRankLabel,
   placeIconLabel,
   placeIconName,
 } from "../../src/client/components/icons.js";
@@ -37,28 +37,30 @@ describe("placeIconLabel", () => {
 });
 
 describe("markerPinSvg", () => {
-  it("embeds the glyph paths for the family and a unique gradient per marker", () => {
-    const first = markerPinSvg("food", "osm");
-    const second = markerPinSvg("food", "osm");
-    // Each marker gets its own gradient id so the fill never bleeds between pins.
+  it("draws a source-coloured teardrop with unique ids per marker", () => {
+    const first = markerPinSvg("serpapi");
+    const second = markerPinSvg("serpapi");
+    // Unique defs ids keep a marker's gradient and shape from colliding with
+    // another marker's when Leaflet adds and removes pins.
     expect(first).not.toBe(second);
     expect(first).toContain("<svg");
     expect(first).toContain("pd-pin__body");
-    expect(first).toContain("pd-pin__glyph");
     expect(first).toContain("linearGradient");
+    expect(first).toContain('id="pd-pin-shape-');
+    expect(first).toContain('fill="url(#pd-pin-grad-serpapi-');
   });
 });
 
-describe("markerRankBadge", () => {
+describe("markerRankLabel", () => {
   it("renders the shared result number and hides it when there is no rank", () => {
-    expect(markerRankBadge(3)).toContain(">3<");
-    expect(markerRankBadge(3)).toContain("pd-marker__rank");
-    expect(markerRankBadge(null)).toBe("");
-    expect(markerRankBadge(Number.NaN)).toBe("");
+    expect(markerRankLabel(3)).toContain(">3<");
+    expect(markerRankLabel(3)).toContain("pd-marker__rank");
+    expect(markerRankLabel(null)).toBe("");
+    expect(markerRankLabel(Number.NaN)).toBe("");
   });
 
-  it("compacts three-digit ranks so the badge does not overflow the pin", () => {
-    expect(markerRankBadge(120)).toContain("pd-marker__rank--compact");
+  it("compacts three-digit ranks so the number fits in the pin head", () => {
+    expect(markerRankLabel(120)).toContain("pd-marker__rank--compact");
   });
 });
 

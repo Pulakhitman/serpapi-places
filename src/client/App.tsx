@@ -153,6 +153,18 @@ export function App() {
   const noticeTimer = useRef<number | null>(null);
   const bootRef = useRef(false);
 
+  /**
+   * Editing the pasted links invalidates any previous parse: otherwise the
+   * import could submit references that no longer match what is on screen.
+   * Clearing the refs forces an explicit re-parse before the run can start.
+   */
+  const changeImportText = useCallback((next: string) => {
+    setImportText(next);
+    setImportRefs([]);
+    setImportRejected([]);
+    setCriteria((current) => (current.importRefs?.length ? { ...current, importRefs: [] } : current));
+  }, []);
+
   const notify = useCallback((kind: NoticeKind, message: string) => {
     setNotice({ id: Date.now(), kind, message });
     if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
@@ -300,21 +312,22 @@ export function App() {
       runGeneration.current += 1;
       const generation = runGeneration.current;
       activeRunIdRef.current = runId;
-      setPlaces([]);
-      setPlacesTotal(0);
       setSelectedPlaceId(null);
       try {
         const run = await api.run(runId);
         if (generation !== runGeneration.current) return;
         setActiveRun(run);
+        // Only swap the visible results once the target run is confirmed, so a
+        // failed switch leaves the previous run's places on screen instead of a
+        // mysteriously empty list. loadRunPlaces clears the rows itself.
         if (isTerminalRun(run.status)) await loadRunPlaces(run.id);
       } catch (caught) {
         if (generation === runGeneration.current) {
-          notify("error", caught instanceof ApiError ? caught.message : "Could not load that search run.");
+          setRunError(caught instanceof ApiError ? caught.message : "Could not load that search run.");
         }
       }
     },
-    [loadRunPlaces, notify],
+    [loadRunPlaces],
   );
 
   const bootstrap = useCallback(async () => {
@@ -573,7 +586,10 @@ export function App() {
         : null,
       center: boundsCenter(viewportBounds),
     }));
-    if (isMobileViewport()) setMobileView("map");
+    if (isMobileViewport()) setMobileView("list");
+    // The sidebar is the only place with the Run button on mobile, so surface
+    // the search controls rather than leaving the user on a collapsed panel.
+    if (isMobileViewport()) setSearchCollapsed(false);
     notify("info", `Map area selected (≈ ${area.toFixed(1)} km²). Press “Run search”.`);
   };
 
@@ -802,7 +818,7 @@ export function App() {
                 importRejected={importRejected}
                 importText={importText}
                 importParsing={importParsing}
-                onImportTextChange={setImportText}
+                onImportTextChange={changeImportText}
                 onParseImports={() => void parseImports()}
                 estimateLoading={estimateLoading}
                 onOpenSettings={() => setSettingsOpen(true)}
@@ -842,6 +858,9 @@ export function App() {
                 void loadRunPlaces(activeRun.id, true, places.length);
               }}
               onSwitchRun={(runId) => void selectRun(runId)}
+              onRetryRun={() => {
+                if (activeRun) void selectRun(activeRun.id);
+              }}
               onSavePlace={(place) => void savePlace(place)}
               onRemoveSavedPlace={(place) => void removeSavedPlace(place)}
               onExportRun={() => {
@@ -878,6 +897,7 @@ export function App() {
             tiles={tiles}
             layers={layers}
             onLayersChange={setLayers}
+            onUseMapView={useMapView}
           />
         </section>
 
