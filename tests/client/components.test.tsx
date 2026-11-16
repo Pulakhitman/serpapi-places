@@ -20,6 +20,8 @@ function place(overrides: Partial<Place> = {}): Place {
     lat: 23.7808,
     lon: 90.4162,
     distanceMeters: 420,
+    insideArea: true,
+    areaCheck: "radius",
     fields: { rating: 4.5, reviews: 1200 },
     provenance: { name: { source: "osm", retrievedAt: "2026-01-01T00:00:00.000Z" } },
     detailsStatus: "fetched",

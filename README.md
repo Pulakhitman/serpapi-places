@@ -90,7 +90,7 @@ npm run test:db    # requires RUN_DB_TESTS=1 and TEST_DATABASE_URL
 
 ## Configuration
 
-All credentials and policy flags live in the server environment. See [`.env.example`](.env.example) for the complete list.
+All credentials and policy flags live in the server environment. The SerpApi key can also be saved from **Settings**, encrypted at rest with `SETTINGS_ENCRYPTION_KEY`; the environment value remains the fallback. See [`.env.example`](.env.example) for the complete list.
 
 Key defaults:
 
@@ -112,7 +112,7 @@ The API rejects values above the hard caps even if they are submitted directly. 
 
 The stack is designed to sit behind an existing Traefik instance without changing it. For a Hostinger VPS walkthrough (DNS, `.env`, TLS, verification), see [`docs/DEPLOY-HOSTINGER.md`](docs/DEPLOY-HOSTINGER.md).
 
-1. Copy `.env.example` to `.env`, set `APP_ACCESS_KEY`, `POSTGRES_PASSWORD`, `SERPAPI_API_KEY`, `APP_ORIGIN`, `APP_HOST`, and the Traefik values.
+1. Copy `.env.example` to `.env`, set `APP_ACCESS_KEY`, `POSTGRES_PASSWORD`, `SERPAPI_API_KEY` (or leave it empty and enter the key in Settings after first sign-in), `SETTINGS_ENCRYPTION_KEY`, `APP_ORIGIN`, `APP_HOST`, and the Traefik values.
 2. Confirm the external Traefik network name (`TRAEFIK_NETWORK`, default `traefik`) and cert resolver (`TRAEFIK_CERT_RESOLVER`, default `letsencrypt`).
 3. Build and start only this project's services:
 

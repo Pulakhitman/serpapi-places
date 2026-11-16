@@ -53,14 +53,32 @@ export function ResultsPanel({
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("distance");
   const [text, setText] = useState("");
+  const [showOutside, setShowOutside] = useState(false);
   useEffect(() => {
     setSourceFilter("all");
     setText("");
+    setShowOutside(false);
   }, [run?.id]);
+
+  const containment = useMemo(() => {
+    let inside = 0;
+    let outside = 0;
+    let unknown = 0;
+    for (const place of places) {
+      if (place.insideArea === true) inside++;
+      else if (place.insideArea === false) outside++;
+      else unknown++;
+    }
+    // Only offer the filter when the run actually classified records.
+    return { inside, outside, unknown, classified: inside + outside > 0 };
+  }, [places]);
 
   const filtered = useMemo(() => {
     const needle = text.trim().toLowerCase();
     const list = places.filter((place) => {
+      // The run never discards outside records; this is a presentation filter
+      // that hides them by default and keeps the raw run intact.
+      if (containment.classified && !showOutside && place.insideArea === false) return false;
       if (sourceFilter !== "all" && place.source !== sourceFilter) return false;
       if (!needle) return true;
       return `${place.name} ${place.address ?? ""} ${place.category ?? ""}`.toLowerCase().includes(needle);
@@ -70,7 +88,7 @@ export function ResultsPanel({
       if (sortKey === "rating") return ratingOf(b) - ratingOf(a) || a.name.localeCompare(b.name);
       return (a.distanceMeters ?? Number.MAX_SAFE_INTEGER) - (b.distanceMeters ?? Number.MAX_SAFE_INTEGER);
     });
-  }, [places, sourceFilter, sortKey, text]);
+  }, [places, sourceFilter, sortKey, text, showOutside, containment.classified]);
 
   if (!run) {
     return (
@@ -341,10 +359,28 @@ export function ResultsPanel({
                   <option value="rating">Rating</option>
                 </select>
               </label>
+              {containment.outside > 0 ? (
+                <label className="field field--inline field--checkbox">
+                  <input
+                    type="checkbox"
+                    checked={showOutside}
+                    onChange={(event) => setShowOutside(event.target.checked)}
+                  />
+                  <span>
+                    Show {containment.outside} outside the selected area
+                  </span>
+                </label>
+              ) : null}
             </div>
           </div>
 
-          <p className="field__hint" role="status">Showing {places.length} loaded places of {total}. List filters only affect this view; no valid returned places are removed from the run.</p>
+          <p className="field__hint" role="status">
+            Showing {filtered.length} of {places.length} loaded places of {total}.
+            {containment.classified
+              ? ` ${containment.inside} inside the selected area and ${containment.outside} outside.`
+              : ""}{" "}
+            List filters only affect this view; no valid returned places are removed from the run.
+          </p>
           <ul className="place-list">
             {filtered.map((place) => (
               <li key={place.id}>
@@ -371,6 +407,11 @@ export function ResultsPanel({
                       ) : null}
                       {place.detailsStatus === "fetched" && place.source === "serpapi" ? (
                         <Badge tone="ok">Details fetched</Badge>
+                      ) : null}
+                      {place.insideArea === false ? (
+                        <Badge tone="warn" title="This record was returned outside the area you selected">
+                          Outside selected area
+                        </Badge>
                       ) : null}
                     </span>
                     <span className="place-card__name">{place.name}</span>

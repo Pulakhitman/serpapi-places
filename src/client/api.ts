@@ -13,6 +13,7 @@ import type {
   SavedSearch,
   SearchCriteria,
   SearchRun,
+  SerpApiCredentialState,
   SourceStatus,
   TileBoundsInfo,
   UsageSummary,
@@ -42,6 +43,7 @@ export interface AppStatus {
 export interface SettingsPayload {
   settings: AppSettings & { updatedAt: string; updatedBy: string | null };
   usage: UsageSummary;
+  serpapiCredential: SerpApiCredentialState;
   hardLimits: {
     monthly: number;
     daily: number;
@@ -221,6 +223,15 @@ export const api = {
   updateSettings(input: AppSettings): Promise<{ settings: AppSettings; usage: UsageSummary }> {
     return request("/api/settings", { method: "PUT", body: input });
   },
+  saveSerpApiKey(apiKey: string): Promise<{ credential: SerpApiCredentialState; verification: { ok: boolean; plan: string | null; searchesLeft: number | null; message: string } }> {
+    return request("/api/settings/serpapi-key", { method: "PUT", body: { apiKey } });
+  },
+  clearSerpApiKey(): Promise<{ credential: SerpApiCredentialState }> {
+    return request("/api/settings/serpapi-key", { method: "DELETE" });
+  },
+  testSerpApiKey(apiKey?: string): Promise<{ verification: { ok: boolean; plan: string | null; searchesLeft: number | null; message: string } }> {
+    return request("/api/settings/serpapi-key/test", { method: "POST", body: apiKey ? { apiKey } : {} });
+  },
   createRun(criteria: SearchCriteria, savedSearchId: string | null = null): Promise<{ runId: string; reused: boolean }> {
     return request("/api/search-runs", {
       method: "POST",
@@ -357,6 +368,7 @@ export const api = {
     format: ExportFormat;
     fields: string[];
     sources: string[];
+    insideOnly?: boolean;
   }): Promise<ExportJob> {
     return request("/api/export-jobs", { method: "POST", body: input });
   },
@@ -365,9 +377,61 @@ export const api = {
   },
 };
 
-export function downloadExport(jobId: string): void {
+function filenameFromDisposition(value: string): string | null {
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(value);
+  if (encoded?.[1]) {
+    try {
+      return decodeURIComponent(encoded[1].replaceAll('"', ""));
+    } catch {
+      return encoded[1].replaceAll('"', "");
+    }
+  }
+  const plain = /filename="?([^";]+)"?/i.exec(value);
+  return plain?.[1] ?? null;
+}
+
+/**
+ * Download an export through fetch so failures surface as messages instead of
+ * a silent navigation, and so the browser receives the server's exact file
+ * name. A detached anchor without `download` can be retried by the browser or
+ * ignored when the response is an error, which looked like "nothing happened".
+ */
+export async function downloadExport(jobId: string): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`/api/export-jobs/${jobId}/download`, {
+      credentials: "same-origin",
+      headers: { Accept: "application/zip" },
+    });
+  } catch {
+    throw new ApiError(0, "network_error", "Could not reach the server. Check your connection.");
+  }
+  if (!response.ok) {
+    if (response.status === 401) {
+      window.dispatchEvent(new CustomEvent("pd:unauthorized"));
+    }
+    let message = `Download failed (${response.status}).`;
+    let code = "download_failed";
+    try {
+      const payload = (await response.json()) as { error?: { code?: string; message?: string } };
+      if (payload.error?.message) message = payload.error.message;
+      if (payload.error?.code) code = payload.error.code;
+    } catch {
+      // The body was not JSON; keep the status-based message.
+    }
+    throw new ApiError(response.status, code, message);
+  }
+  const fileName =
+    filenameFromDisposition(response.headers.get("content-disposition") ?? "") ??
+    `places-export-${jobId.slice(0, 8)}.zip`;
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-  anchor.href = `/api/export-jobs/${jobId}/download`;
+  anchor.href = url;
+  anchor.download = fileName;
   anchor.rel = "noopener";
+  document.body.append(anchor);
   anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 2_000);
 }
