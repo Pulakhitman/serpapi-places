@@ -20,11 +20,11 @@ describe("placeIconName", () => {
     expect(placeIconName("Grocery store")).toBe("bag");
   });
 
-  it("falls back to a plain pin for unknown, empty, or missing categories", () => {
-    expect(placeIconName(null)).toBe("pin");
-    expect(placeIconName(undefined)).toBe("pin");
-    expect(placeIconName("")).toBe("pin");
-    expect(placeIconName("Some unclassified thing")).toBe("pin");
+  it("falls back to a plain dot for unknown, empty, or missing categories", () => {
+    expect(placeIconName(null)).toBe("dot");
+    expect(placeIconName(undefined)).toBe("dot");
+    expect(placeIconName("")).toBe("dot");
+    expect(placeIconName("Some unclassified thing")).toBe("dot");
   });
 });
 
@@ -32,7 +32,7 @@ describe("placeIconLabel", () => {
   it("returns a human-readable label for every family", () => {
     expect(placeIconLabel("food")).toBe("Food and drink");
     expect(placeIconLabel("bed")).toBe("Lodging");
-    expect(placeIconLabel("pin")).toBe("Place");
+    expect(placeIconLabel("dot")).toBe("Place");
   });
 });
 

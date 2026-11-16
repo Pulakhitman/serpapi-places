@@ -1574,47 +1574,43 @@ button {
 .pd-pin__stop-b { stop-color: var(--pin-b); }
 
 .pd-pin__glyph {
-  stroke: rgba(255, 255, 255, 0.96);
-  stroke-width: 2.1;
+  /* The glyph is drawn at a 0.9 scale in the marker SVG, so a thicker stroke
+     here is what keeps it crisp rather than hairline-thin on the pin. */
+  stroke: #fff;
+  stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;
   fill: none;
 }
 
-/* Source palettes. Reusing the layer colours keeps marker and legend honest. */
+/* Source palettes. Reusing the layer colours keeps marker and legend honest,
+   and the category is carried by the glyph rather than the pin colour, so a
+   SerpApi pin never stops being orange and an OSM pin never stops being green. */
 .pd-marker--osm {
-  --pin-a: #2f9c63;
+  --pin-a: #35a869;
   --pin-b: var(--osm);
 }
 
 .pd-marker--serpapi {
-  --pin-a: #ea6a2f;
+  --pin-a: #f0742f;
   --pin-b: var(--serpapi);
 }
-
-/* Category families get their own tint so a pin stays readable at a glance. */
-.pd-marker--bed { --pin-a: #6d8fe0; --pin-b: #34509c; }
-.pd-marker--tree { --pin-a: #4fae63; --pin-b: #1f7a3d; }
-.pd-marker--health { --pin-a: #f0616b; --pin-b: #b3222f; }
-.pd-marker--book { --pin-a: #9a72d8; --pin-b: #61369b; }
-.pd-marker--bank { --pin-a: #7b8a94; --pin-b: #445058; }
-.pd-marker--bag { --pin-a: #d9a134; --pin-b: #9a6a08; }
 
 /* Numbered badge on the pin's shoulder, shared with the results list. */
 .pd-marker__rank {
   position: absolute;
-  top: 0;
-  left: -3px;
+  top: 2px;
+  left: -4px;
   display: inline-grid;
   place-items: center;
-  min-width: 17px;
-  height: 17px;
+  min-width: 18px;
+  height: 18px;
   padding: 0 4px;
   border-radius: 999px;
-  border: 1.5px solid #fff;
+  border: 2px solid #fff;
   background: var(--ink);
   color: #fff;
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 800;
   line-height: 1;
   font-variant-numeric: tabular-nums;

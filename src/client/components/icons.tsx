@@ -1,5 +1,6 @@
 export type PlaceIconName =
   | "pin"
+  | "dot"
   | "food"
   | "bed"
   | "tree"
@@ -21,6 +22,9 @@ const ICON_PATHS: Record<PlaceIconName, string[]> = {
     "M12 21.2s7-6.4 7-11.2a7 7 0 1 0-14 0c0 4.8 7 11.2 7 11.2Z",
     "M12 13.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z",
   ],
+  // Used inside a map pin for uncategorised places; a pin inside a pin reads as
+  // noise, so the fallback is a clean centred dot.
+  dot: ["M12 5.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Z"],
   food: [
     "M7 3.5v6.2a2 2 0 0 0 2 2h.4V3.5",
     "M8.2 11.7V20.5",
@@ -91,12 +95,13 @@ export function placeIconName(value: string | null | undefined): PlaceIconName {
   if (/(school|university|college|library|education|museum)/.test(text)) return "book";
   if (/(bank|atm|finance|insurance|government|city hall|courthouse|police|post office)/.test(text)) return "bank";
   if (/(store|shop|market|mall|retail|supermarket|grocery|gas|fuel|pharmacy)/.test(text)) return "bag";
-  return "pin";
+  return "dot";
 }
 
 /** Human-readable label used by marker titles and accessibility text. */
 const ICON_LABELS: Record<PlaceIconName, string> = {
   pin: "Place",
+  dot: "Place",
   food: "Food and drink",
   bed: "Lodging",
   tree: "Outdoors",
@@ -120,6 +125,11 @@ export function markerPinSvg(name: PlaceIconName, variant: string): string {
   const glyphPaths = ICON_PATHS[name]
     .map((path) => `<path d="${path}" />`)
     .join("");
+  // The teardrop head is a circle centred near (15, 15.5) with a ~13 radius.
+  // Scaling the 24-unit glyph by 0.9 and centring it there fills the head while
+  // leaving a clean margin inside the white outline.
+  const scale = 0.9;
+  const offset = 12 * scale;
   return [
     `<svg viewBox="0 0 30 40" aria-hidden="true" focusable="false">`,
     `<defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">`,
@@ -127,7 +137,7 @@ export function markerPinSvg(name: PlaceIconName, variant: string): string {
     `<stop class="pd-pin__stop-b" offset="1" />`,
     `</linearGradient></defs>`,
     `<path class="pd-pin__body" fill="url(#${gradientId})" d="M15 39.4C15 39.4 28 25.9 28 15.6C28 8.7 22.1 3 15 3C7.9 3 2 8.7 2 15.6C2 25.9 15 39.4 15 39.4Z" />`,
-    `<g class="pd-pin__glyph" transform="translate(6.9 7.5) scale(0.675)">${glyphPaths}</g>`,
+    `<g class="pd-pin__glyph" transform="translate(${15 - offset} ${15.5 - offset}) scale(${scale})">${glyphPaths}</g>`,
     `</svg>`,
   ].join("");
 }
