@@ -6,7 +6,13 @@ import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import type { Bounds, Coordinates, Place, SearchMode } from "../../shared/types.js";
 import { formatDistance, sourceLabel } from "../format.js";
-import { MapPinIcon } from "./icons.js";
+import {
+  MapPinIcon,
+  markerPinSvg,
+  markerRankBadge,
+  placeIconLabel,
+  placeIconName,
+} from "./icons.js";
 
 interface MapViewProps {
   /** Already filtered and ordered by App, so marker numbers match list rows. */
@@ -31,14 +37,45 @@ interface MapViewProps {
   onLayersChange: (layers: { osm: boolean; serpapi: boolean }) => void;
 }
 
-function markerIcon(source: Place["source"], selected: boolean, rank: number): L.DivIcon {
-  const compact = rank >= 100 ? " pd-marker__glyph--compact" : "";
+/**
+ * One accessible description for a marker, shared by the rebuild and the
+ * selection effect so the two cannot drift apart.
+ */
+function markerAlt(
+  place: Place,
+  rank: number | null,
+  kind: ReturnType<typeof placeIconName>,
+  selected: boolean,
+): string {
+  return [
+    place.name,
+    rank === null ? null : `result ${rank}`,
+    sourceLabel(place.source),
+    placeIconLabel(kind),
+    place.category ?? "uncategorised",
+    selected ? "selected" : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+interface MarkerIconOptions {
+  source: Place["source"];
+  category: string | null;
+  selected: boolean;
+  rank: number | null;
+}
+
+function markerIcon({ source, category, selected, rank }: MarkerIconOptions): L.DivIcon {
+  const name = placeIconName(category);
+  const classes = ["pd-marker", `pd-marker--${source}`, `pd-marker--${name}`];
+  if (selected) classes.push("pd-marker--selected");
   return L.divIcon({
-    className: `pd-marker pd-marker--${source}${selected ? " pd-marker--selected" : ""}`,
-    html: `<span aria-hidden="true"><span class="pd-marker__glyph${compact}">${rank}</span></span>`,
-    iconSize: [44, 44],
-    iconAnchor: [22, 40],
-    tooltipAnchor: [0, -35],
+    className: classes.join(" "),
+    html: `<span aria-hidden="true">${markerPinSvg(name, source)}</span>${markerRankBadge(rank)}`,
+    iconSize: [34, 44],
+    iconAnchor: [17, 42],
+    tooltipAnchor: [0, -40],
   });
 }
 
@@ -226,20 +263,21 @@ export function MapView({
     serpCluster.clearLayers();
     markerMapRef.current.clear();
 
-    places.forEach((place, index) => {
+    places.forEach((place) => {
       if (!Number.isFinite(place.lat) || !Number.isFinite(place.lon)) return;
-      const rank = rankById.get(place.id) ?? index + 1;
+      const rank = rankById.get(place.id) ?? null;
+      const kind = placeIconName(place.category);
       const marker = L.marker([place.lat, place.lon], {
-        icon: markerIcon(place.source, place.id === selectedId, rank),
+        icon: markerIcon({ source: place.source, category: place.category, selected: place.id === selectedId, rank }),
         keyboard: true,
-        title: `${rank}. ${place.name}`,
-        alt: `${place.name}, result ${rank} (${sourceLabel(place.source)})`,
+        title: rank === null ? place.name : `${rank}. ${place.name}`,
+        alt: markerAlt(place, rank, kind, false),
         riseOnHover: true,
       });
       const tooltip = document.createElement("div");
       tooltip.className = "pd-tooltip";
       const title = document.createElement("strong");
-      title.textContent = `${rank}. ${place.name}`;
+      title.textContent = rank === null ? place.name : `${rank}. ${place.name}`;
       const meta = document.createElement("span");
       meta.textContent = `${sourceLabel(place.source)} · ${place.category ?? "Uncategorised"} · ${formatDistance(place.distanceMeters)}`;
       tooltip.append(title, meta);
@@ -247,7 +285,7 @@ export function MapView({
       marker.on("click", () => callbacksRef.current.onSelect(place.id));
       marker.on("add", () => {
         const element = marker.getElement();
-        if (element) element.setAttribute("aria-label", `${place.name}, result ${rank}, ${sourceLabel(place.source)}, ${place.category ?? "uncategorised"}`);
+        if (element) element.setAttribute("aria-label", markerAlt(place, rank, kind, false));
       });
       markerMapRef.current.set(place.id, marker);
       if (place.source === "osm") osmCluster.addLayer(marker);
@@ -273,12 +311,26 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const byId = new Map(places.map((place, index) => [place.id, { place, rank: rankById.get(place.id) ?? index + 1 }]));
+    const byId = new Map(places.map((place) => [place.id, place]));
     for (const [id, item] of markerMapRef.current) {
-      item.setZIndexOffset(id === selectedId ? 1000 : 0);
-      const entry = byId.get(id);
-      item.setIcon(markerIcon(entry?.place.source ?? "osm", id === selectedId, entry?.rank ?? 0));
-      if (entry) item.getElement()?.setAttribute("aria-label", `${entry.place.name}, result ${entry.rank}, ${sourceLabel(entry.place.source)}, ${entry.place.category ?? "uncategorised"}${id === selectedId ? ", selected" : ""}`);
+      const isSelected = id === selectedId;
+      item.setZIndexOffset(isSelected ? 1000 : 0);
+      const itemPlace = byId.get(id);
+      // A marker without loaded place data keeps its glyph and just loses the highlight.
+      item.setIcon(
+        markerIcon({
+          source: itemPlace?.source ?? "osm",
+          category: itemPlace?.category ?? null,
+          selected: isSelected,
+          rank: rankById.get(id) ?? null,
+        }),
+      );
+      if (itemPlace) {
+        item.getElement()?.setAttribute(
+          "aria-label",
+          markerAlt(itemPlace, rankById.get(id) ?? null, placeIconName(itemPlace.category), isSelected),
+        );
+      }
     }
     const marker = selectedId ? markerMapRef.current.get(selectedId) : null;
     if (!marker) return;

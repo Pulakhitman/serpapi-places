@@ -78,6 +78,12 @@ export function LibraryModal({
   const [bulkCollection, setBulkCollection] = useState("");
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [confirmItem, setConfirmItem] = useState<string | null>(null);
+  const [removeMenuOpen, setRemoveMenuOpen] = useState(false);
+  // Which broad removal is pending confirmation: every saved place, or just the
+  // ones matching the current filter. `null` means no confirmation is open.
+  const [confirmClear, setConfirmClear] = useState<"all" | "filtered" | null>(null);
+  const [destroySource, setDestroySource] = useState(false);
+  const [confirmCollectionRemove, setConfirmCollectionRemove] = useState<string | null>(null);
   const [confirmCollection, setConfirmCollection] = useState<string | null>(null);
   const [confirmSearch, setConfirmSearch] = useState<string | null>(null);
   const [editingCollection, setEditingCollection] = useState<string | null>(null);
@@ -174,9 +180,9 @@ export function LibraryModal({
       onNotify("success", "Note saved.");
     });
 
-  const removeSaved = (saved: SavedPlace) =>
+  const removeSaved = (saved: SavedPlace, destroy = destroySource) =>
     act(`delete:${saved.id}`, async () => {
-      await api.deleteSavedPlace(saved.id);
+      await api.deleteSavedPlace(saved.id, { destroySource: destroy });
       setPlaces((current) => current.filter((item) => item.id !== saved.id));
       setSelected((current) => {
         const next = new Set(current);
@@ -184,18 +190,61 @@ export function LibraryModal({
         return next;
       });
       setConfirmItem(null);
-      onNotify("info", "Saved place removed.");
+      onNotify("info", destroy ? "Saved place and its source record removed." : "Saved place removed.");
     });
 
   const bulkDelete = () =>
     act("bulk-delete", async () => {
       const ids = [...selected];
       if (ids.length === 0) return;
-      const result = await api.bulkDeleteSavedPlaces(ids);
+      const result = await api.bulkDeleteSavedPlaces(ids, { destroySource });
       setPlaces((current) => current.filter((item) => !selected.has(item.id)));
       setSelected(new Set());
       setConfirmBulk(false);
       onNotify("info", `${result.deleted} saved place${result.deleted === 1 ? "" : "s"} removed.`);
+    });
+
+  /** Remove every saved place, or only those matching the current filter. */
+  const clearPlaces = (scope: "all" | "filtered") =>
+    act(`clear:${scope}`, async () => {
+      const targets = scope === "filtered" ? filteredPlaces : places;
+      const ids = targets.map((item) => item.id);
+      if (ids.length === 0) return;
+      const result = await api.bulkDeleteSavedPlaces(ids, { destroySource });
+      const removed = new Set(ids);
+      setPlaces((current) => current.filter((item) => !removed.has(item.id)));
+      setSelected((current) => {
+        const next = new Set(current);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+      setConfirmClear(null);
+      setRemoveMenuOpen(false);
+      onNotify(
+        "info",
+        `${result.deleted} saved place${result.deleted === 1 ? "" : "s"} removed${
+          scope === "filtered" ? " (current filter)" : ""
+        }.`,
+      );
+    });
+
+  /** Empty a collection without deleting the saved places that belong to it. */
+  const clearCollection = (collection: Collection) =>
+    act(`clear-collection:${collection.id}`, async () => {
+      const result = await api.removeCollectionItems(collection.id);
+      setPlaces((current) =>
+        current.map((item) => ({
+          ...item,
+          collections: item.collections.filter((entry) => entry.id !== collection.id),
+        })),
+      );
+      setCollections((current) =>
+        current.map((entry) =>
+          entry.id === collection.id ? { ...entry, itemCount: Math.max(0, entry.itemCount - result.deleted) } : entry,
+        ),
+      );
+      setConfirmCollectionRemove(null);
+      onNotify("info", "Collection emptied. Saved places were kept.");
     });
 
   const bulkAddToCollection = () =>
@@ -389,7 +438,76 @@ export function LibraryModal({
                 >
                   {allVisibleSelected ? "Clear selection" : "Select all visible"}
                 </button>
+                <div className="menu-anchor">
+                  <button
+                    type="button"
+                    className="button button--ghost button--small"
+                    onClick={() => setRemoveMenuOpen((open) => !open)}
+                    aria-expanded={removeMenuOpen}
+                    aria-haspopup="true"
+                    disabled={busy !== null}
+                  >
+                    Remove…
+                  </button>
+                  {removeMenuOpen ? (
+                    <div className="menu" role="menu" aria-label="Remove saved places">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="menu__item"
+                        onClick={() => {
+                          setConfirmClear("filtered");
+                          setRemoveMenuOpen(false);
+                        }}
+                        disabled={filteredPlaces.length === 0}
+                      >
+                        Remove filtered ({filteredPlaces.length})
+                        {textFilter.trim() ? null : <span className="menu__hint"> all places match</span>}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="menu__item menu__item--danger"
+                        onClick={() => {
+                          setConfirmClear("all");
+                          setRemoveMenuOpen(false);
+                        }}
+                      >
+                        Remove all ({places.length})
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               </div>
+
+              {confirmClear ? (
+                <div className="bulk-bar bulk-bar--danger" role="alertdialog" aria-label="Confirm removal">
+                  <strong>
+                    Remove {confirmClear === "filtered" ? `the ${filteredPlaces.length} filtered` : `all ${places.length}`} saved
+                    place{places.length === 1 ? "" : "s"}?
+                  </strong>
+                  <span className="field__hint">This cannot be undone.</span>
+                  <label className="check-inline">
+                    <input
+                      type="checkbox"
+                      checked={destroySource}
+                      onChange={(event) => setDestroySource(event.target.checked)}
+                    />
+                    Also delete the source records
+                  </label>
+                  <button
+                    type="button"
+                    className="button button--danger button--small"
+                    onClick={() => clearPlaces(confirmClear)}
+                    disabled={busy !== null}
+                  >
+                    Confirm remove
+                  </button>
+                  <button type="button" className="button button--ghost button--small" onClick={() => setConfirmClear(null)}>
+                    Cancel
+                  </button>
+                </div>
+              ) : null}
 
               {selected.size > 0 ? (
                 <div className="bulk-bar" role="region" aria-label="Bulk actions">
@@ -424,6 +542,14 @@ export function LibraryModal({
                   ) : null}
                   {confirmBulk ? (
                     <>
+                      <label className="check-inline">
+                        <input
+                          type="checkbox"
+                          checked={destroySource}
+                          onChange={(event) => setDestroySource(event.target.checked)}
+                        />
+                        Also delete the source records
+                      </label>
                       <button
                         type="button"
                         className="button button--danger button--small"
@@ -437,7 +563,14 @@ export function LibraryModal({
                       </button>
                     </>
                   ) : (
-                    <button type="button" className="button button--ghost button--small" onClick={() => setConfirmBulk(true)}>
+                    <button
+                      type="button"
+                      className="button button--ghost button--small"
+                      onClick={() => {
+                        setDestroySource(false);
+                        setConfirmBulk(true);
+                      }}
+                    >
                       Remove selected
                     </button>
                   )}
@@ -471,19 +604,45 @@ export function LibraryModal({
                       >
                         ⭳
                       </button>
-                      <button
-                        type="button"
-                        className="icon-button icon-button--small"
-                        onClick={() =>
-                          confirmItem === saved.id ? removeSaved(saved) : setConfirmItem(saved.id)
-                        }
-                        aria-label={
-                          confirmItem === saved.id ? `Confirm removal of ${saved.place.name}` : `Remove ${saved.place.name}`
-                        }
-                        title={confirmItem === saved.id ? "Press again to confirm" : "Remove saved place"}
-                      >
-                        {confirmItem === saved.id ? "!" : "✕"}
-                      </button>
+                      {confirmItem === saved.id ? (
+                        <div className="saved-item__remove" role="group" aria-label={`Remove ${saved.place.name}`}>
+                          <button
+                            type="button"
+                            className="button button--danger button--small"
+                            onClick={() => removeSaved(saved, false)}
+                            disabled={busy !== null}
+                            title="Remove only the saved snapshot; the source record stays"
+                          >
+                            Remove
+                          </button>
+                          <button
+                            type="button"
+                            className="button button--danger button--small"
+                            onClick={() => removeSaved(saved, true)}
+                            disabled={busy !== null}
+                            title="Also delete the underlying source record and its run results"
+                          >
+                            Remove + delete source
+                          </button>
+                          <button
+                            type="button"
+                            className="button button--ghost button--small"
+                            onClick={() => setConfirmItem(null)}
+                            disabled={busy !== null}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="button button--ghost button--small"
+                          onClick={() => setConfirmItem(saved.id)}
+                          aria-label={`Remove ${saved.place.name} from saved places`}
+                        >
+                          Remove
+                        </button>
+                      )}
                     </div>
                     <p className="saved-item__address">{saved.place.address ?? "No address from source"}</p>
                     <div className="saved-item__note">
@@ -623,6 +782,35 @@ export function LibraryModal({
                     >
                       Export
                     </button>
+                    {confirmCollectionRemove === collection.id ? (
+                      <>
+                        <button
+                          type="button"
+                          className="button button--danger button--small"
+                          onClick={() => clearCollection(collection)}
+                          disabled={busy !== null}
+                        >
+                          Confirm empty
+                        </button>
+                        <button
+                          type="button"
+                          className="button button--ghost button--small"
+                          onClick={() => setConfirmCollectionRemove(null)}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="button button--ghost button--small"
+                        onClick={() => setConfirmCollectionRemove(collection.id)}
+                        disabled={collection.itemCount === 0}
+                        title="Remove every saved place from this collection but keep the places"
+                      >
+                        Empty (keep places)
+                      </button>
+                    )}
                     {confirmCollection === collection.id ? (
                       <>
                         <button

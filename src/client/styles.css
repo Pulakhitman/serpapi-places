@@ -1548,37 +1548,96 @@ button {
   cursor: pointer;
 }
 
+/* Category pin: an SVG teardrop that carries the category glyph. */
 .pd-marker > span {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  margin: 3px auto;
-  transform: rotate(-45deg);
-  border-radius: 50% 50% 50% 4px;
-  border: 2px solid #fff;
-  color: #fff;
-  box-shadow: 0 3px 7px rgba(0, 0, 0, 0.34);
-  transition: scale 0.12s ease;
+  display: block;
+  width: 34px;
+  height: 44px;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.32));
+  transition: transform 0.12s ease;
+  transform-origin: 50% 92%;
 }
 
-.pd-marker__glyph {
-  transform: rotate(45deg);
-  font-size: 12px;
+.pd-marker > span svg {
+  display: block;
+  width: 34px;
+  height: 44px;
+  overflow: visible;
+}
+
+.pd-pin__body {
+  stroke: #fff;
+  stroke-width: 1.6;
+}
+
+.pd-pin__stop-a { stop-color: var(--pin-a); }
+.pd-pin__stop-b { stop-color: var(--pin-b); }
+
+.pd-pin__glyph {
+  stroke: rgba(255, 255, 255, 0.96);
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+/* Source palettes. Reusing the layer colours keeps marker and legend honest. */
+.pd-marker--osm {
+  --pin-a: #2f9c63;
+  --pin-b: var(--osm);
+}
+
+.pd-marker--serpapi {
+  --pin-a: #ea6a2f;
+  --pin-b: var(--serpapi);
+}
+
+/* Category families get their own tint so a pin stays readable at a glance. */
+.pd-marker--bed { --pin-a: #6d8fe0; --pin-b: #34509c; }
+.pd-marker--tree { --pin-a: #4fae63; --pin-b: #1f7a3d; }
+.pd-marker--health { --pin-a: #f0616b; --pin-b: #b3222f; }
+.pd-marker--book { --pin-a: #9a72d8; --pin-b: #61369b; }
+.pd-marker--bank { --pin-a: #7b8a94; --pin-b: #445058; }
+.pd-marker--bag { --pin-a: #d9a134; --pin-b: #9a6a08; }
+
+/* Numbered badge on the pin's shoulder, shared with the results list. */
+.pd-marker__rank {
+  position: absolute;
+  top: 0;
+  left: -3px;
+  display: inline-grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  border: 1.5px solid #fff;
+  background: var(--ink);
+  color: #fff;
+  font-size: 9.5px;
   font-weight: 800;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
 }
 
-.pd-marker__glyph--compact {
-  font-size: 9.5px;
-  letter-spacing: -0.04em;
+.pd-marker__rank--compact {
+  font-size: 8px;
+  letter-spacing: -0.05em;
 }
 
-.pd-marker--osm > span { background: var(--osm); }
-.pd-marker--serpapi > span { background: var(--serpapi); border-radius: 50% 50% 4px 50%; }
-.pd-marker--selected > span { scale: 1.17; outline: 3px solid #142d26; outline-offset: 3px; }
+.pd-marker--osm > .pd-marker__rank { background: var(--osm); }
+.pd-marker--serpapi > .pd-marker__rank { background: var(--serpapi); }
+
+.pd-marker:hover > span,
+.pd-marker--selected > span {
+  transform: scale(1.13);
+}
+
+.pd-marker--selected > span {
+  filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.36));
+}
+
 .pd-marker:focus-visible, .pd-cluster:focus-visible { outline: 3px solid #162f28; outline-offset: 2px; }
 
 .pd-cluster {
@@ -2767,6 +2826,87 @@ button {
   min-width: 150px;
   min-height: 32px;
   padding: 4px 8px;
+}
+
+.bulk-bar--danger {
+  border-color: #f0c2c2;
+  background: #fdf2f2;
+}
+
+.check-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.check-inline input[type="checkbox"] {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+
+/* Small dropdown used by the Saved places "Remove…" scope menu. */
+.menu-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 210px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.menu__item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu__item:hover:not([disabled]) {
+  background: var(--panel-soft);
+}
+
+.menu__item[disabled] {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.menu__item--danger {
+  color: var(--danger);
+  font-weight: 650;
+}
+
+.menu__hint {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* Inline confirm for a single saved place. */
+.saved-item__remove {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
 }
 
 .saved-list,

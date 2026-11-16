@@ -322,11 +322,15 @@ export const api = {
   updateSavedPlaceNote(id: string, note: string | null): Promise<{ id: string; note: string | null }> {
     return request(`/api/saved-places/${id}`, { method: "PATCH", body: { note } });
   },
-  deleteSavedPlace(id: string): Promise<void> {
-    return request(`/api/saved-places/${id}`, { method: "DELETE" });
+  deleteSavedPlace(id: string, options: { destroySource?: boolean } = {}): Promise<void> {
+    const query = options.destroySource ? "?destroySource=true" : "";
+    return request(`/api/saved-places/${id}${query}`, { method: "DELETE" });
   },
-  bulkDeleteSavedPlaces(ids: string[]): Promise<{ deleted: number }> {
-    return request("/api/saved-places/bulk-delete", { method: "POST", body: { ids } });
+  bulkDeleteSavedPlaces(ids: string[], options: { destroySource?: boolean } = {}): Promise<{ deleted: number; destroyed: number }> {
+    return request("/api/saved-places/bulk-delete", {
+      method: "POST",
+      body: { ids, destroySource: options.destroySource === true },
+    });
   },
   collections(): Promise<{ collections: Collection[] }> {
     return request("/api/collections");
@@ -345,6 +349,13 @@ export const api = {
   },
   removeCollectionItem(id: string, savedPlaceId: string): Promise<{ deleted: number }> {
     return request(`/api/collections/${id}/items/${savedPlaceId}`, { method: "DELETE" });
+  },
+  /** Omit `savedPlaceIds` to empty the collection; saved places are kept. */
+  removeCollectionItems(id: string, savedPlaceIds?: string[]): Promise<{ deleted: number }> {
+    return request(`/api/collections/${id}/items/remove`, {
+      method: "POST",
+      body: savedPlaceIds ? { savedPlaceIds } : {},
+    });
   },
   duplicates(state?: string): Promise<{ duplicates: DuplicateCandidate[] }> {
     return request(`/api/duplicates${state ? `?state=${encodeURIComponent(state)}` : ""}`);
